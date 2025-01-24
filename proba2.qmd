@@ -1,0 +1,77 @@
+---
+title: "proba2"
+format: html
+---
+
+```{r}
+#| echo: false
+#| warning: false
+library(ggiraph)
+library(patchwork)
+library(tidyverse)
+library(ggtext)
+
+
+GES <- read.csv("https://data-donnees.az.ec.gc.ca/api/file?path=%2Fsubstances%2Fmonitor%2Fcanada-s-official-greenhouse-gas-inventory%2FA-Secteurs-GIEC%2FFR_GES_GIEC_Can_Prov_Terr.csv",na.strings = c("x", ""),fileEncoding ="Latin1", check.names = F)
+
+GES <- as_tibble(GES)
+
+colnames(GES)[c(5,6,7,11,13)] <- c("nom_catégorie","sous_catégorie", "sous_sous_catégorie", "CH4_co2eq", "N2O_co2eq")
+
+GES <- GES |> 
+  mutate(
+    Région = fct(Région),
+    sous_catégorie = fct(sous_catégorie),
+    sous_sous_catégorie = fct(sous_sous_catégorie),
+    Total = fct(Total),
+    Source = fct(Source),
+    nom_catégorie = fct(nom_catégorie)
+  )
+
+GES <- GES |> 
+  mutate(
+    Source = str_sub(Source, 1, 11)
+  )
+
+#GES |> count(Source) to see the names of the source
+
+GES <- GES |>
+  mutate(
+    Source = fct_recode(Source,
+      "Affectation terres"    = "AFFECTATION",
+      "Agriculture"      = "AGRICULTURE",
+      "Déchets" = "DÉCHETS",
+      "P. Industriels" = "PROCÉDÉS IN",
+      "Énergie"        = "ÉNERGIE")
+  )
+
+ges_quebec_secteurs <- GES |> 
+  select(Année:sous_sous_catégorie, Total, CO2eq)|> 
+  filter(Région =="Québec")|>
+  filter(is.na(sous_sous_catégorie))|>
+  filter(is.na(sous_catégorie))|>
+  filter(is.na(nom_catégorie))|>
+  filter(Catégorie!=650)|>
+  filter(Catégorie!=0)
+
+ges_quebec_total <- ges_quebec_secteurs |>
+  group_by(Année) |> 
+  summarize(CO2eq = sum(CO2eq))
+
+p1 <-ggplot(ges_quebec_total, aes(x = Année, y = CO2eq, data_id=Année)) +
+  geom_line(linewidth = 1,colour = "#33CC00") +
+  geom_point_interactive(aes(tooltip=round(CO2eq,0)),colour = "#33CC00", size = 2, hover_nearest = TRUE )+
+labs(title = "Émissions de GES du Québec (avec ATCATF)",
+     y = "kt d’éq. CO2",
+     caption = "Source: Elaboration propre basée sur Environnement et Changement climatique Canada. (2024). Inventaire officiel des gaz à effet de serre du Canada.") +
+  theme_light() +
+theme(plot.title = element_text(size=16,face="bold"),
+      plot.caption = element_textbox_simple(size=10))
+
+
+combined_plot <- p1 + plot_annotation(
+  caption = 'www.notes-eco.com'
+)
+  girafe(ggobj = combined_plot,options = list(opts_sizing(rescale = TRUE)))
+```
+
